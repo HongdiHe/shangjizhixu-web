@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: shangji_postgres
@@ -17,7 +18,48 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - shangji_network
 
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    container_name: shangji_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shangji_network
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: shangji_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - shangji_network
+
+  # FastAPI Backend
   backend:
     build:
       context: .
@@ -27,14 +69,112 @@ services:
       - "8080:8080"
     environment:
       - DATABASE_URI=postgresql+asyncpg://postgres:postgres@postgres:5432/shangji_db
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:3003","http://localhost:5173"]
+      - REDIS_URI=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_SECURE=false
+      - ENVIRONMENT=development
+      - BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:3001","http://localhost:3002","http://localhost:3003","http://localhost:5173"]
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting FastAPI server...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+      "
+    networks:
+      - shangji_network
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shangji_celery_worker
+    environment:
+      - DATABASE_URI=postgresql+asyncpg://postgres:postgres@postgres:5432/shangji_db
+      - REDIS_URI=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_SECURE=false
+      - ENVIRONMENT=development
     volumes:
       - ./app:/app/app
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - shangji_network
+
+  # Celery Beat (for scheduled tasks)
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shangji_celery_beat
+    environment:
+      - DATABASE_URI=postgresql+asyncpg://postgres:postgres@postgres:5432/shangji_db
+      - REDIS_URI=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ENVIRONMENT=development
+    volumes:
+      - ./app:/app/app
+    depends_on:
+      - redis
+      - postgres
+    command: celery -A app.core.celery_app beat --loglevel=info
+    networks:
+      - shangji_network
+
+  # Flower (Celery monitoring)
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shangji_flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    command: celery -A app.core.celery_app flower --port=5555
+    networks:
+      - shangji_network
 
 volumes:
   postgres_data:
     driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  shangji_network:
+    driver: bridge
