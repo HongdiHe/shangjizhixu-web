@@ -1,4 +1,8 @@
-"""Question management API endpoints."""
+"""Question management API endpoints.
+Updated: 2025-11-14 - Added regenerate_rewrite endpoint
+"""
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +34,7 @@ from app.schemas.common import APIResponse
 from app.services.question_service import QuestionService
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/", response_model=APIResponse[QuestionSchema])
@@ -213,6 +218,58 @@ async def delete_question(
 
 # ==================== OCR Endpoints ====================
 
+@router.post("/{question_id}/ocr/trigger", response_model=APIResponse[dict])
+async def trigger_ocr(
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_ocr_editor)
+) -> APIResponse[dict]:
+    """
+    Trigger or re-trigger OCR processing for a question.
+
+    Args:
+        question_id: Question ID
+        db: Database session
+        current_user: Current OCR editor
+
+    Returns:
+        Task status
+    """
+    question = await QuestionService.get_by_id(db, question_id)
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found"
+        )
+
+    # Check assignment
+    if question.ocr_editor_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not assigned to this question"
+        )
+
+    # Check if images exist
+    if not question.original_images:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No images to process"
+        )
+
+    # Trigger OCR task
+    from app.tasks.ocr_tasks import process_mineru_ocr
+    task = process_mineru_ocr.delay(question.id)
+
+    return APIResponse(
+        success=True,
+        message="OCR task triggered successfully",
+        data={
+            "task_id": task.id,
+            "question_id": question_id
+        }
+    )
+
+
 @router.put("/{question_id}/ocr/draft", response_model=APIResponse[QuestionSchema])
 async def update_ocr_draft(
     question_id: int,
@@ -356,10 +413,11 @@ async def submit_ocr_review(
         final_answer=review.original_answer
     )
 
-    # TODO: If approved, trigger LLM rewrite task
-    # if review.review_status == ReviewStatus.APPROVED:
-    #     from app.tasks.llm_tasks import generate_rewrites
-    #     generate_rewrites.delay(question.id)
+    # If approved, trigger LLM rewrite task
+    if review.review_status == ReviewStatus.APPROVED:
+        from app.tasks.llm_tasks import generate_rewrites
+        generate_rewrites.delay(question.id)
+        logger.info(f"Triggered LLM rewrite task for question {question.id}")
 
     return APIResponse(
         success=True,
@@ -540,6 +598,62 @@ async def submit_rewrite_review(
         success=True,
         message=f"Rewrite {index} review submitted successfully",
         data=QuestionSchema.model_validate(updated_question)
+    )
+
+
+@router.post("/{question_id}/rewrite/{index}/regenerate", response_model=APIResponse[dict])
+async def regenerate_rewrite(
+    question_id: int,
+    index: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_rewrite_editor)
+) -> APIResponse[dict]:
+    """
+    Regenerate a single rewrite version using LLM.
+
+    Args:
+        question_id: Question ID
+        index: Rewrite index (1-5)
+        db: Database session
+        current_user: Current rewrite editor user
+
+    Returns:
+        Task info
+    """
+    question = await QuestionService.get_by_id(db, question_id)
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found"
+        )
+
+    # Validate index
+    if index < 1 or index > 5:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Index must be between 1 and 5"
+        )
+
+    # Check question status - allow regeneration during editing or reviewing
+    if question.status not in [
+        QuestionStatus.REWRITE_EDITING,
+        QuestionStatus.REWRITE_REVIEWING
+    ]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot regenerate rewrite in status: {question.status}"
+        )
+
+    # Trigger regeneration task
+    from app.tasks.llm_tasks import regenerate_single_rewrite
+    task = regenerate_single_rewrite.delay(question_id, index)
+
+    logger.info(f"Triggered rewrite regeneration for question {question_id}, index {index}, task_id: {task.id}")
+
+    return APIResponse(
+        success=True,
+        message=f"Rewrite {index} regeneration started",
+        data={"task_id": task.id}
     )
 
 
