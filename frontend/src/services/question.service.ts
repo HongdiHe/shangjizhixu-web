@@ -1,6 +1,5 @@
 /**
  * Question API service
- * Updated: 2025-11-14 - Added regenerate rewrite functionality
  */
 import api from './api'
 import type {
@@ -155,6 +154,13 @@ export const questionService = {
    */
   submitRewriteEdit: async (id: number, index: number): Promise<APIResponse<Question>> => {
     return api.post(`/questions/${id}/rewrite/${index}/submit`)
+  },
+
+  /**
+   * Submit all rewrite edits (all 5 versions)
+   */
+  submitAllRewriteEdits: async (id: number): Promise<APIResponse<Question>> => {
+    return api.post(`/questions/${id}/rewrite/submit-all`)
   },
 
   /**

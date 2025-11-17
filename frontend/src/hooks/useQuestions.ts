@@ -1,6 +1,5 @@
 /**
  * Question-related hooks
- * Updated: 2025-11-14 - Added useRegenerateRewrite hook
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { questionService, type QuestionCreateData } from '@/services/question.service'
@@ -136,6 +135,19 @@ export const useSubmitRewriteEdit = () => {
       questionService.submitRewriteEdit(id, index),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['question', variables.id] })
+    },
+  })
+}
+
+export const useSubmitAllRewriteEdits = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: number) =>
+      questionService.submitAllRewriteEdits(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ['question', id] })
+      queryClient.invalidateQueries({ queryKey: ['questions'] })
     },
   })
 }

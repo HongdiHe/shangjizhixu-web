@@ -1,6 +1,4 @@
-"""Question management API endpoints.
-Updated: 2025-11-14 - Added regenerate_rewrite endpoint
-"""
+"""Question management API endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -539,6 +537,61 @@ async def submit_rewrite_edit(
     return APIResponse(
         success=True,
         message=f"Rewrite {index} submitted for review",
+        data=QuestionSchema.model_validate(updated_question)
+    )
+
+
+@router.post("/{question_id}/rewrite/submit-all", response_model=APIResponse[QuestionSchema])
+async def submit_all_rewrite_edits(
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_rewrite_editor)
+) -> APIResponse[QuestionSchema]:
+    """
+    Submit all rewrite edits (all 5 versions) for review.
+
+    Args:
+        question_id: Question ID
+        db: Database session
+        current_user: Current rewrite editor
+
+    Returns:
+        Updated question
+    """
+    question = await QuestionService.get_by_id(db, question_id)
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found"
+        )
+
+    # Check assignment
+    if question.rewrite_editor_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not assigned to this question"
+        )
+
+    # Validate that at least one version has content
+    has_content = False
+    for index in range(1, 6):
+        draft_q = getattr(question, f"draft_rewrite_question_{index}")
+        draft_a = getattr(question, f"draft_rewrite_answer_{index}")
+        if draft_q and draft_a:
+            has_content = True
+            break
+
+    if not has_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one rewrite version must be completed before submission"
+        )
+
+    updated_question = await QuestionService.submit_all_rewrite_edits(db, question)
+
+    return APIResponse(
+        success=True,
+        message="All rewrite versions submitted for review",
         data=QuestionSchema.model_validate(updated_question)
     )
 

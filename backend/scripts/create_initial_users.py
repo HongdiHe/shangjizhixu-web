@@ -3,6 +3,7 @@ Create initial users for testing.
 
 This script creates the following test users:
 - admin (admin): Full system access
+- submitter (question_submitter): Can create and submit questions
 - ocr_editor (ocr_editor): Can edit OCR content
 - ocr_reviewer (ocr_reviewer): Can review OCR content
 - rewrite_editor (rewrite_editor): Can edit rewrite content
@@ -85,6 +86,16 @@ async def main():
                 is_superuser=True
             )
 
+            # Create question submitter
+            await create_user(
+                db=db,
+                username="submitter",
+                email="submitter@example.com",
+                password="password123",
+                role=UserRole.QUESTION_SUBMITTER,
+                full_name="题目录入员"
+            )
+
             # Create OCR editor
             await create_user(
                 db=db,
@@ -132,11 +143,12 @@ async def main():
             print()
             print("Login credentials (all passwords: password123):")
             print("-" * 60)
-            print("Admin:            username=admin")
-            print("OCR Editor:       username=ocr_editor")
-            print("OCR Reviewer:     username=ocr_reviewer")
-            print("Rewrite Editor:   username=rewrite_editor")
-            print("Rewrite Reviewer: username=rewrite_reviewer")
+            print("Admin:              username=admin")
+            print("Question Submitter: username=submitter")
+            print("OCR Editor:         username=ocr_editor")
+            print("OCR Reviewer:       username=ocr_reviewer")
+            print("Rewrite Editor:     username=rewrite_editor")
+            print("Rewrite Reviewer:   username=rewrite_reviewer")
             print("-" * 60)
 
         except Exception as e:

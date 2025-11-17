@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Update LLM_REWRITE_PROMPT in database
-Created: 2025-11-14
-"""
+"""Update LLM_REWRITE_PROMPT in database"""
 import sys
 sys.path.insert(0, '/app')
 

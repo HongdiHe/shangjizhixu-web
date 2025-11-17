@@ -49,7 +49,7 @@ async def create_question_submitter():
                 username="submitter",
                 email="submitter@example.com",
                 full_name="题目录入员",
-                hashed_password=get_password_hash("submitter123"),
+                hashed_password=get_password_hash("password123"),
                 role=UserRole.QUESTION_SUBMITTER,
                 is_active=True,
                 is_superuser=False
@@ -61,7 +61,7 @@ async def create_question_submitter():
 
             print("✓ Question submitter user created successfully!")
             print(f"  Username: submitter")
-            print(f"  Password: submitter123")
+            print(f"  Password: password123")
             print(f"  Role: {new_user.role}")
             print(f"  Email: {new_user.email}")
 

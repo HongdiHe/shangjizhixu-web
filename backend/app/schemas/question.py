@@ -94,8 +94,10 @@ class QuestionInDB(QuestionBase):
     original_images: List[str]
 
     # OCR fields
-    draft_original_question: Optional[str] = None
-    draft_original_answer: Optional[str] = None
+    ocr_raw_question: Optional[str] = None  # MinerU原始OCR结果（只读）
+    ocr_raw_answer: Optional[str] = None    # MinerU原始OCR答案（只读）
+    draft_original_question: Optional[str] = None  # 可编辑的题目草稿
+    draft_original_answer: Optional[str] = None    # 可编辑的答案草稿
     original_question: Optional[str] = None
     original_answer: Optional[str] = None
     original_review_comment: Optional[str] = None

@@ -1,6 +1,4 @@
-"""LLM tasks for question rewriting using Celery.
-Updated: 2025-11-14 - Fixed prompt template to include question/answer placeholders
-"""
+"""LLM tasks for question rewriting using Celery."""
 import logging
 from typing import Optional
 import httpx
@@ -43,7 +41,7 @@ async def _get_db():
             await session.close()
 
 
-async def _build_rewrite_prompt(original_question: str, original_answer: str, db: AsyncSession) -> str:
+async def _build_rewrite_prompt(original_question: str, original_answer: str, db: AsyncSession, version_number: int = 1) -> str:
     """
     Build the rewrite prompt for LLM.
 
@@ -51,6 +49,7 @@ async def _build_rewrite_prompt(original_question: str, original_answer: str, db
         original_question: Original question text
         original_answer: Original answer text
         db: Database session
+        version_number: Version number (1-5) to generate diverse results
 
     Returns:
         str: Formatted prompt for LLM
@@ -98,10 +97,19 @@ async def _build_rewrite_prompt(original_question: str, original_answer: str, db
 
 ## 答案
 [改写后的答案内容]
+
+---
+【版本要求】这是第 {version} 个改写版本，请确保与其他版本有明显差异：
+- 如果是第1个版本：采用常规改写策略
+- 如果是第2个版本：更多使用字母替换和符号表达
+- 如果是第3个版本：更多改变语序和用词
+- 如果是第4个版本：更多修改定义描述方式
+- 如果是第5个版本：综合运用所有技巧，创造最大差异
+请产生与之前版本不同的改写结果！
 """
 
     # 使用安全的字符串替换，避免格式化注入
-    prompt = prompt_template.replace('{question}', original_question).replace('{answer}', original_answer)
+    prompt = prompt_template.replace('{question}', original_question).replace('{answer}', original_answer).replace('{version}', str(version_number))
     return prompt
 
 
@@ -178,7 +186,8 @@ async def _call_llm_api(prompt: str, db: AsyncSession) -> Optional[str]:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # 增加超时时间到300秒（5分钟），因为复杂题目的改写需要更长时间
+        async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 api_url,
                 json=data,
@@ -189,7 +198,7 @@ async def _call_llm_api(prompt: str, db: AsyncSession) -> Optional[str]:
             response.raise_for_status()
 
     except httpx.TimeoutException:
-        logger.error(f"请求超时（超过120秒），请检查网络连接")
+        logger.error(f"请求超时（超过300秒），请检查网络连接或LLM服务状态")
         return None
     except httpx.ConnectError as e:
         logger.error(f"连接失败：{str(e)}，请检查网络连接")
@@ -308,13 +317,6 @@ def generate_rewrites(self, question_id: int) -> dict:
                 question.status = QuestionStatus.REWRITE_GENERATING
                 await db.commit()
 
-                # Build prompt
-                prompt = await _build_rewrite_prompt(
-                    question.original_question,
-                    question.original_answer,
-                    db
-                )
-
                 # Generate 5 rewrites
                 results = {
                     "total": 5,
@@ -324,6 +326,14 @@ def generate_rewrites(self, question_id: int) -> dict:
 
                 for i in range(1, 6):
                     logger.info(f"Generating rewrite {i}/5 for question {question_id}")
+
+                    # Build prompt with version number (每次生成不同的prompt)
+                    prompt = await _build_rewrite_prompt(
+                        question.original_question,
+                        question.original_answer,
+                        db,
+                        version_number=i
+                    )
 
                     # Call LLM API
                     response = await _call_llm_api(prompt, db)
@@ -436,11 +446,12 @@ def regenerate_single_rewrite(self, question_id: int, index: int) -> dict:
                 if question.original_answer:
                     logger.info(f"Answer preview: {question.original_answer[:200]}")
 
-                # Build prompt
+                # Build prompt with version number
                 prompt = await _build_rewrite_prompt(
                     question.original_question,
                     question.original_answer,
-                    db
+                    db,
+                    version_number=index
                 )
 
                 # Call LLM API

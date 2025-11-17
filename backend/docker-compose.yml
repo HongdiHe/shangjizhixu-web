@@ -81,6 +81,7 @@ services:
     volumes:
       - ./app:/app/app
       - ./alembic:/app/alembic
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,6 +119,7 @@ services:
       - ENVIRONMENT=development
     volumes:
       - ./app:/app/app
+      - ./scripts:/app/scripts
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,6 +145,7 @@ services:
       - ENVIRONMENT=development
     volumes:
       - ./app:/app/app
+      - ./scripts:/app/scripts
     depends_on:
       - redis
       - postgres

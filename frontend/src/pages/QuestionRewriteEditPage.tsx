@@ -1,6 +1,5 @@
 /**
  * Rewrite editing page
- * Updated: 2025-11-14 - Added regenerate button with polling
  */
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
@@ -17,12 +16,13 @@ import {
   Tabs,
   Image,
 } from 'antd'
-import { SaveOutlined, SendOutlined, ReloadOutlined } from '@ant-design/icons'
+import { SaveOutlined, SendOutlined, ReloadOutlined, WarningOutlined } from '@ant-design/icons'
 import Editor from '@monaco-editor/react'
 import {
   useQuestion,
   useUpdateRewriteDraft,
   useSubmitRewriteEdit,
+  useSubmitAllRewriteEdits,
   useRegenerateRewrite,
 } from '@/hooks/useQuestions'
 
@@ -40,6 +40,7 @@ const QuestionRewriteEditPage = () => {
   const { data, isLoading, refetch } = useQuestion(Number(id))
   const updateRewriteDraft = useUpdateRewriteDraft()
   const submitRewriteEdit = useSubmitRewriteEdit()
+  const submitAllRewriteEdits = useSubmitAllRewriteEdits()
   const regenerateRewrite = useRegenerateRewrite()
 
   const defaultIndex = Number(searchParams.get('index')) || 1
@@ -90,7 +91,7 @@ const QuestionRewriteEditPage = () => {
 
   const handleSubmit = async () => {
     try {
-      // Save draft first if there are changes
+      // Save draft first if there are changes on current version
       if (hasChanges) {
         const draft = drafts[currentIndex]
         await updateRewriteDraft.mutateAsync({
@@ -103,12 +104,9 @@ const QuestionRewriteEditPage = () => {
         })
       }
 
-      // Submit for review
-      await submitRewriteEdit.mutateAsync({
-        id: Number(id),
-        index: currentIndex,
-      })
-      message.success(`版本 ${currentIndex} 已提交审核`)
+      // Submit all versions for review
+      await submitAllRewriteEdits.mutateAsync(Number(id))
+      message.success('所有改写版本已提交审核')
       navigate('/questions')
     } catch (error: any) {
       console.error('Submit error:', error)
@@ -244,6 +242,30 @@ const QuestionRewriteEditPage = () => {
           </Card>
         )}
 
+        {/* Review feedback if any */}
+        {(() => {
+          const reviewStatus = question[`rewrite_review_status_${index}` as keyof typeof question] as string
+          const reviewComment = question[`rewrite_review_comment_${index}` as keyof typeof question] as string
+
+          if (reviewStatus === 'changes_requested' && reviewComment) {
+            return (
+              <Card
+                title={
+                  <Space>
+                    <WarningOutlined style={{ color: '#ff4d4f' }} />
+                    <Text type="danger">审核意见 - 需要修改</Text>
+                  </Space>
+                }
+                size="small"
+                style={{ marginBottom: 16, borderColor: '#ff4d4f' }}
+              >
+                <Text>{reviewComment}</Text>
+              </Card>
+            )
+          }
+          return null
+        })()}
+
         {/* Draft editors */}
         <Card
           title={
@@ -356,9 +378,9 @@ const QuestionRewriteEditPage = () => {
             type="primary"
             icon={<SendOutlined />}
             onClick={handleSubmit}
-            loading={submitRewriteEdit.isPending}
+            loading={submitAllRewriteEdits.isPending}
           >
-            提交审核（版本 {currentIndex}）
+            提交所有版本审核
           </Button>
           <Button onClick={() => navigate(`/questions/${id}`)}>返回</Button>
         </Space>

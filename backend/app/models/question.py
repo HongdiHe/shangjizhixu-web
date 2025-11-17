@@ -63,16 +63,28 @@ class Question(Base):
     )
 
     # ==================== OCR 阶段字段 ====================
-    # 待处理原题（Markdown格式）
+    # MinerU原始OCR结果（永不修改，仅供参考）
+    ocr_raw_question: Mapped[str] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Raw OCR result from MinerU (read-only, for reference)"
+    )
+    ocr_raw_answer: Mapped[str] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Raw OCR answer from MinerU (read-only, for reference)"
+    )
+
+    # 待处理原题（Markdown格式，编辑员可修改）
     draft_original_question: Mapped[str] = mapped_column(
         Text,
         nullable=True,
-        comment="Draft original question in Markdown from MinerU"
+        comment="Editable draft question in Markdown"
     )
     draft_original_answer: Mapped[str] = mapped_column(
         Text,
         nullable=True,
-        comment="Draft original answer in Markdown from MinerU"
+        comment="Editable draft answer in Markdown"
     )
 
     # 原题（单行要求格式）
