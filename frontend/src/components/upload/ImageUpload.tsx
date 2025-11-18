@@ -1,9 +1,9 @@
 /**
- * Image upload component
+ * Image upload component with drag-to-reorder support
  */
 import React, { useState, useRef, useEffect } from 'react'
 import { Upload, Button, message, Image, Space } from 'antd'
-import { UploadOutlined, DeleteOutlined } from '@ant-design/icons'
+import { UploadOutlined, DeleteOutlined, DragOutlined } from '@ant-design/icons'
 import type { UploadFile, UploadProps } from 'antd'
 import { uploadService } from '@/services/upload.service'
 
@@ -24,6 +24,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   const [uploadingCount, setUploadingCount] = useState(0)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const urlsRef = useRef<string[]>(value)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
   // Sync ref with prop value
   useEffect(() => {
@@ -72,6 +73,28 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     onChange?.(newUrls)
   }
 
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const newUrls = [...value]
+    const draggedItem = newUrls[draggedIndex]
+    newUrls.splice(draggedIndex, 1)
+    newUrls.splice(index, 0, draggedItem)
+
+    setDraggedIndex(index)
+    onChange?.(newUrls)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+  }
+
   const beforeUpload = (file: File) => {
     const isImage = file.type.startsWith('image/')
     if (!isImage) {
@@ -96,13 +119,39 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             {value.map((url, index) => (
               <div
                 key={url}
+                draggable={!disabled}
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
                 style={{
                   position: 'relative',
-                  border: '1px solid #d9d9d9',
+                  border: draggedIndex === index ? '2px dashed #1890ff' : '1px solid #d9d9d9',
                   borderRadius: '8px',
                   padding: '8px',
+                  cursor: disabled ? 'default' : 'move',
+                  opacity: draggedIndex === index ? 0.5 : 1,
+                  transition: 'all 0.2s',
                 }}
               >
+                {!disabled && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      left: '4px',
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      zIndex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <DragOutlined style={{ color: '#999' }} />
+                    <span style={{ fontSize: '12px', color: '#666' }}>{index + 1}</span>
+                  </div>
+                )}
                 <Image
                   src={url}
                   alt={`image-${index}`}

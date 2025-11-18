@@ -14,7 +14,6 @@ import {
   Image,
   Row,
   Col,
-  Tabs,
   Alert,
 } from 'antd'
 import { SaveOutlined, SendOutlined, ReloadOutlined } from '@ant-design/icons'
@@ -282,191 +281,229 @@ const QuestionOCREditPage = () => {
         />
       )}
 
-      {/* MinerU OCR 识别结果展示（只读） */}
-      <Card
-        title="📄 MinerU OCR 识别结果（原始）"
-        style={{ marginBottom: 16 }}
-        extra={
-          <Space>
-            <Text type="secondary">此区域为只读，不受编辑影响</Text>
-            {originalOcrResult && !originalOcrResult.includes('待人工录入') && (
-              <>
-                <Button
-                  size="small"
-                  type="primary"
-                  onClick={handleCopyOcrToEdit}
-                >
-                  复制到编辑框
-                </Button>
-                <Button
-                  size="small"
-                  icon={<ReloadOutlined />}
-                  onClick={handleTriggerOCR}
-                  loading={triggerOCR.isPending}
-                >
-                  重新 OCR
-                </Button>
-              </>
-            )}
-          </Space>
-        }
-      >
-        <Tabs
-          items={[
-            {
-              key: 'preview',
-              label: '预览',
-              children: (
-                <div style={{
-                  padding: '16px',
-                  backgroundColor: '#fafafa',
-                  borderRadius: '4px',
-                  minHeight: '300px',
-                  maxHeight: '500px',
-                  overflow: 'auto',
-                  border: '2px dashed #d9d9d9' // 添加虚线边框表示只读
-                }}>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                  >
-                    {originalOcrResult || '暂无 OCR 识别内容'}
-                  </ReactMarkdown>
-                </div>
-              ),
-            },
-            {
-              key: 'markdown',
-              label: 'Markdown 源码',
-              children: (
-                <pre style={{
-                  padding: '16px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '4px',
-                  minHeight: '300px',
-                  maxHeight: '500px',
-                  overflow: 'auto',
-                  fontSize: '13px',
-                  lineHeight: '1.6',
-                  border: '2px dashed #d9d9d9' // 添加虚线边框表示只读
-                }}>
-                  {originalOcrResult || '暂无 OCR 识别内容'}
-                </pre>
-              ),
-            },
-          ]}
-        />
+      {/* 操作按钮区 */}
+      <Card style={{ marginBottom: 16 }}>
+        <Space>
+          <Button
+            size="small"
+            type="primary"
+            onClick={handleCopyOcrToEdit}
+            disabled={!originalOcrResult || originalOcrResult.includes('待人工录入')}
+          >
+            复制 OCR 结果到编辑框
+          </Button>
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={handleTriggerOCR}
+            loading={triggerOCR.isPending}
+          >
+            重新执行 OCR
+          </Button>
+          {hasChanges && <Text type="warning">（有未保存的修改）</Text>}
+        </Space>
       </Card>
 
-      {/* 编辑区域 */}
+      {/* 三行纵向编辑区域 */}
+      {/* 第一行：MinerU OCR 结果（只读） */}
       <Card
-        title={
-          <Space>
-            <span>✏️ 编辑题目与答案</span>
-            {hasChanges && <Text type="warning">(有未保存的修改)</Text>}
-          </Space>
-        }
-        extra={
-          <Text type="secondary">已自动填入 OCR 结果，可独立编辑</Text>
-        }
+        title="📄 MinerU OCR 结果"
+        size="small"
         style={{ marginBottom: 16 }}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>只读</Text>}
       >
         <Row gutter={16}>
           <Col span={12}>
-            <Tabs
-              items={[
-                {
-                  key: 'edit-question',
-                  label: '编辑题目',
-                  children: (
-                    <div style={{ border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-                      <Editor
-                        height="500px"
-                        defaultLanguage="markdown"
-                        value={draftQuestion}
-                        onChange={handleQuestionChange}
-                        options={{
-                          minimap: { enabled: false },
-                          lineNumbers: 'on',
-                          wordWrap: 'on',
-                          scrollBeyondLastLine: false,
-                          fontSize: 14,
-                        }}
-                      />
-                    </div>
-                  ),
-                },
-                {
-                  key: 'preview-question',
-                  label: '预览题目',
-                  children: (
-                    <div style={{
-                      padding: '16px',
-                      backgroundColor: '#fafafa',
-                      borderRadius: '4px',
-                      minHeight: '500px',
-                      maxHeight: '500px',
-                      overflow: 'auto'
-                    }}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                      >
-                        {draftQuestion || '暂无内容'}
-                      </ReactMarkdown>
-                    </div>
-                  ),
-                },
-              ]}
-            />
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#f0f0f0',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 预览
+              </div>
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#fafafa',
+                borderRadius: '0 0 4px 4px',
+                minHeight: '300px',
+                maxHeight: '300px',
+                overflow: 'auto',
+                border: '2px dashed #d9d9d9'
+              }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {originalOcrResult || '暂无 OCR 识别内容'}
+                </ReactMarkdown>
+              </div>
+            </div>
           </Col>
           <Col span={12}>
-            <Tabs
-              items={[
-                {
-                  key: 'edit-answer',
-                  label: '编辑答案',
-                  children: (
-                    <div style={{ border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-                      <Editor
-                        height="500px"
-                        defaultLanguage="markdown"
-                        value={draftAnswer}
-                        onChange={handleAnswerChange}
-                        options={{
-                          minimap: { enabled: false },
-                          lineNumbers: 'on',
-                          wordWrap: 'on',
-                          scrollBeyondLastLine: false,
-                          fontSize: 14,
-                        }}
-                      />
-                    </div>
-                  ),
-                },
-                {
-                  key: 'preview-answer',
-                  label: '预览答案',
-                  children: (
-                    <div style={{
-                      padding: '16px',
-                      backgroundColor: '#fafafa',
-                      borderRadius: '4px',
-                      minHeight: '500px',
-                      maxHeight: '500px',
-                      overflow: 'auto'
-                    }}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                      >
-                        {draftAnswer || '暂无内容'}
-                      </ReactMarkdown>
-                    </div>
-                  ),
-                },
-              ]}
-            />
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#f0f0f0',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 源码
+              </div>
+              <pre style={{
+                padding: '12px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '0 0 4px 4px',
+                minHeight: '300px',
+                maxHeight: '300px',
+                overflow: 'auto',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                border: '2px dashed #d9d9d9',
+                margin: 0
+              }}>
+                {originalOcrResult || '暂无 OCR 识别内容'}
+              </pre>
+            </div>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* 第二行：题目编辑 */}
+      <Card
+        title="✏️ 题目编辑"
+        size="small"
+        style={{ marginBottom: 16 }}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>可编辑</Text>}
+      >
+        <Row gutter={16}>
+          <Col span={12}>
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#e6f7ff',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 预览
+              </div>
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#fafafa',
+                borderRadius: '0 0 4px 4px',
+                minHeight: '300px',
+                maxHeight: '300px',
+                overflow: 'auto',
+                border: '1px solid #91d5ff'
+              }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {draftQuestion || '暂无内容'}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </Col>
+          <Col span={12}>
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#e6f7ff',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 源码
+              </div>
+              <div style={{ border: '1px solid #91d5ff', borderRadius: '0 0 4px 4px' }}>
+                <Editor
+                  height="300px"
+                  defaultLanguage="markdown"
+                  value={draftQuestion}
+                  onChange={handleQuestionChange}
+                  options={{
+                    minimap: { enabled: false },
+                    lineNumbers: 'on',
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* 第三行：答案编辑 */}
+      <Card
+        title="✏️ 答案编辑"
+        size="small"
+        style={{ marginBottom: 16 }}
+        extra={<Text type="secondary" style={{ fontSize: 12 }}>可编辑</Text>}
+      >
+        <Row gutter={16}>
+          <Col span={12}>
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#f6ffed',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 预览
+              </div>
+              <div style={{
+                padding: '12px',
+                backgroundColor: '#fafafa',
+                borderRadius: '0 0 4px 4px',
+                minHeight: '300px',
+                maxHeight: '300px',
+                overflow: 'auto',
+                border: '1px solid #b7eb8f'
+              }}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {draftAnswer || '暂无内容'}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </Col>
+          <Col span={12}>
+            <div>
+              <div style={{
+                padding: '4px 8px',
+                backgroundColor: '#f6ffed',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                borderRadius: '4px 4px 0 0'
+              }}>
+                Markdown 源码
+              </div>
+              <div style={{ border: '1px solid #b7eb8f', borderRadius: '0 0 4px 4px' }}>
+                <Editor
+                  height="300px"
+                  defaultLanguage="markdown"
+                  value={draftAnswer}
+                  onChange={handleAnswerChange}
+                  options={{
+                    minimap: { enabled: false },
+                    lineNumbers: 'on',
+                    wordWrap: 'on',
+                    scrollBeyondLastLine: false,
+                    fontSize: 13,
+                  }}
+                />
+              </div>
+            </div>
           </Col>
         </Row>
       </Card>
